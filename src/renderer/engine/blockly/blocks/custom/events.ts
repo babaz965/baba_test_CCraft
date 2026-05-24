@@ -26,6 +26,42 @@ function sharedComponentsEvents(compName: UIElementType): string[] {
     return eventsNames;
 }
 
+const keyOptions: [string, string][] = [
+    ['any', 'any'], ['enter', 'enter'], ['space', 'space'],
+    ['up', 'up'], ['down', 'down'], ['left', 'left'], ['right', 'right'],
+    ['backspace', 'backspace'], ['tab', 'tab'],
+    ['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd'], ['e', 'e'],
+    ['f', 'f'], ['g', 'g'], ['h', 'h'], ['i', 'i'], ['j', 'j'],
+    ['k', 'k'], ['l', 'l'], ['m', 'm'], ['n', 'n'], ['o', 'o'],
+    ['p', 'p'], ['q', 'q'], ['r', 'r'], ['s', 's'], ['t', 't'],
+    ['u', 'u'], ['v', 'v'], ['w', 'w'], ['x', 'x'], ['y', 'y'],
+    ['z', 'z'],
+    ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5'],
+    ['6', '6'], ['7', '7'], ['8', '8'], ['9', '9'], ['0', '0'],
+];
+
+const keyNameAliases: Record<string, string> = {
+    '0': 'zero',
+    '1': 'one',
+    '2': 'two',
+    '3': 'three',
+    '4': 'four',
+    '5': 'five',
+    '6': 'six',
+    '7': 'seven',
+    '8': 'eight',
+    '9': 'nine',
+};
+
+function luaKeyExpression(key: string): string {
+    return `keys.${keyNameAliases[key] || key}`;
+}
+
+const allLuaKeyExpressions = keyOptions
+    .map(([, value]) => value)
+    .filter(value => value !== 'any')
+    .map(luaKeyExpression);
+
 
 export const eventsBlocks: Blocks = {
     'event_components_events': {
@@ -107,19 +143,7 @@ export const eventsBlocks: Blocks = {
             init() {
                 this.appendDummyInput()
                     .appendField('when key')
-                    .appendField(new Blockly.FieldDropdown([
-                        ['any', 'any'], ['enter', 'enter'], ['space', 'space'],
-                        ['up', 'up'], ['down', 'down'], ['left', 'left'], ['right', 'right'],
-                        ['backspace', 'backspace'], ['tab', 'tab'],
-                        ['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd'], ['e', 'e'],
-                        ['f', 'f'], ['g', 'g'], ['h', 'h'], ['i', 'i'], ['j', 'j'],
-                        ['k', 'k'], ['l', 'l'], ['m', 'm'], ['n', 'n'], ['o', 'o'],
-                        ['p', 'p'], ['q', 'q'], ['r', 'r'], ['s', 's'], ['t', 't'],
-                        ['u', 'u'], ['v', 'v'], ['w', 'w'], ['x', 'x'], ['y', 'y'],
-                        ['z', 'z'],
-                        ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5'],
-                        ['6', '6'], ['7', '7'], ['8', '8'], ['9', '9'], ['0', '0'],
-                    ]), 'KEY')
+                    .appendField(new Blockly.FieldDropdown(keyOptions), 'KEY')
                     .appendField('is pressed');
                 this.appendStatementInput('DO')
                     .appendField("do");
@@ -130,7 +154,21 @@ export const eventsBlocks: Blocks = {
         generator: (block, gen) => {
             const key = block.getFieldValue('KEY');
             const body = gen.statementToCode(block, 'DO');
-            return `-- [EVENT:key_press:${key}]\n${body}\n-- [/EVENT:key_press:${key}]`;
+            const indent = gen.getIndent();
+
+            if (key === 'any') {
+                return `${indent}screen.events.onKeyPress = screen.events.onKeyPress or {}\n`
+                    + `${indent}for _, keyCode in ipairs({ ${allLuaKeyExpressions.join(', ')} }) do\n`
+                    + `${indent}    screen.events.onKeyPress[keyCode] = function()\n`
+                    + `${body}\n`
+                    + `${indent}    end\n`
+                    + `${indent}end`;
+            }
+
+            return `${indent}screen.events.onKeyPress = screen.events.onKeyPress or {}\n`
+                + `${indent}screen.events.onKeyPress[${luaKeyExpression(key)}] = function()\n`
+                + `${body}\n`
+                + `${indent}end`;
         }
     },
     'event_timer': {
